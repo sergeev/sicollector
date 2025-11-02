@@ -11,7 +11,7 @@ import string
 class SystemInfoCollector:
     def __init__(self, root):
         self.root = root
-        self.root.title("System Information Collector")
+        self.root.title("Сборщик системной информации")
         self.root.geometry("600x500")
         self.root.resizable(True, True)
 
@@ -27,7 +27,7 @@ class SystemInfoCollector:
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         # Заголовок
-        title_label = ttk.Label(main_frame, text="System Information Collector",
+        title_label = ttk.Label(main_frame, text="Сборщик системной информации",
                                 font=("Arial", 16, "bold"))
         title_label.grid(row=0, column=0, columnspan=2, pady=(0, 20))
 
