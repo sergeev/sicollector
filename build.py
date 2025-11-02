@@ -1,21 +1,26 @@
-# build.py - Скрипт для сборки EXE-файла
 import PyInstaller.__main__
 import os
+import sys
 
 
 def build_exe():
-    # Параметры для PyInstaller
+    script_name = "system_info_gui.py"
+    app_name = "SystemInfoCollector"
+
     params = [
-        'system_info_gui.py',  # основной файл программы
-        '--onefile',  # создать один исполняемый файл
-        '--windowed',  # скрыть консоль (оконное приложение)
-        '--name=SystemInfoCollector',  # имя исполняемого файла
-        '--icon=icon.ico',  # иконка (опционально)
-        '--add-data=tcl;tcl',  # для корректной работы Tkinter
-        '--add-data=tk;tk',
-        '--clean',  # очистка временных файлов
+        script_name,
+        '--onefile',
+        '--windowed',
+        f'--name={app_name}',
+        '--clean',
+        '--noconfirm',
     ]
 
+    # Добавляем иконку если она существует
+    if os.path.exists("icon.ico"):
+        params.append('--icon=icon.ico')
+
+    print(f"Building {app_name}.exe...")
     PyInstaller.__main__.run(params)
 
 
