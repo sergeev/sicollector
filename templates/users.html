@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Пользователи - System Info Collector{% endblock %}
+{% block page_title %}Управление пользователями{% endblock %}
+
+{% block content %}
+<div class="stat-card">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4><i class="fas fa-users me-2"></i>Список пользователей</h4>
+        <span class="badge bg-primary">Всего: {{ users|length }}</span>
+    </div>
+
+    {% if users %}
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Имя пользователя</th>
+                    <th>Роль</th>
+                    <th>Статус</th>
+                    <th>Дата создания</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td>
+                        {{ user.username }}
+                        {% if user.username == current_user.username %}
+                        <span class="badge bg-info">Вы</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if user.is_admin %}
+                        <span class="badge bg-danger">Администратор</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Пользователь</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if user.is_active %}
+                        <span class="badge bg-success">Активен</span>
+                        {% else %}
+                        <span class="badge bg-warning">Неактивен</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ user.created_at[:16] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+        <h5 class="text-muted">Пользователи не найдены</h5>
+    </div>
+    {% endif %}
+</div>
+
+<div class="stat-card mt-4">
+    <h5><i class="fas fa-info-circle me-2"></i>Информация</h5>
+    <p class="text-muted">
+        Для добавления новых пользователей или изменения прав доступа обратитесь к администратору системы.
+    </p>
+</div>
+{% endblock %}

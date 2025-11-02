@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Панель управления - System Info Collector{% endblock %}
+{% block page_title %}Панель управления{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h3 class="text-primary">{{ devices_count }}</h3>
+                    <p class="text-muted mb-0">Всего устройств</p>
+                </div>
+                <div class="bg-primary rounded-circle p-3">
+                    <i class="fas fa-desktop text-white fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h3 class="text-success">{{ users_count }}</h3>
+                    <p class="text-muted mb-0">Пользователей</p>
+                </div>
+                <div class="bg-success rounded-circle p-3">
+                    <i class="fas fa-users text-white fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="stat-card">
+            <h4><i class="fas fa-info-circle me-2"></i>Информация о системе</h4>
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Версия сервера
+                            <span class="badge bg-primary">v2.0</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            База данных
+                            <span class="badge bg-success">SQLite</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Аутентификация
+                            <span class="badge bg-info">JWT + Web</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Шифрование
+                            <span class="badge bg-warning">AES-256</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="stat-card">
+            <h4><i class="fas fa-rocket me-2"></i>Быстрые действия</h4>
+            <div class="row mt-3">
+                <div class="col-md-4 mb-2">
+                    <a href="{{ url_for('web_devices') }}" class="btn btn-outline-primary w-100">
+                        <i class="fas fa-desktop me-2"></i>Просмотр устройств
+                    </a>
+                </div>
+                {% if current_user.is_admin %}
+                <div class="col-md-4 mb-2">
+                    <a href="{{ url_for('web_users') }}" class="btn btn-outline-success w-100">
+                        <i class="fas fa-users me-2"></i>Управление пользователями
+                    </a>
+                </div>
+                {% endif %}
+                <div class="col-md-4 mb-2">
+                    <a href="{{ url_for('web_settings') }}" class="btn btn-outline-info w-100">
+                        <i class="fas fa-cog me-2"></i>Настройки
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

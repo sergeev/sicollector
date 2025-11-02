@@ -7,3 +7,4 @@ flask-bcrypt>=1.0.1
 cryptography>=46.0.3
 gunicorn>=23.0.0
 pycryptodome>=3.23.0
+flask_login>=0.6.3
