@@ -19,6 +19,175 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+class AdditionalDataWindow:
+    def __init__(self, parent, callback):
+        self.parent = parent
+        self.callback = callback
+        self.result = None
+
+        self.window = tk.Toplevel(parent)
+        self.window.title("Дополнительная информация")
+        self.window.geometry("750x650")  # Увеличили размер окна
+        self.window.resizable(True, True)  # Разрешили изменение размера
+        self.window.transient(parent)
+        self.window.grab_set()
+
+        # Делаем окно модальным и центрируем
+        self.window.focus_set()
+        self.center_window()
+
+        self.setup_ui()
+
+    def center_window(self):
+        """Центрирует окно относительно родительского"""
+        self.window.update_idletasks()
+        width = self.window.winfo_width()
+        height = self.window.winfo_height()
+        x = (self.window.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.window.winfo_screenheight() // 2) - (height // 2)
+        self.window.geometry(f'{width}x{height}+{x}+{y}')
+
+    def setup_ui(self):
+        main_frame = ttk.Frame(self.window, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        title_label = ttk.Label(main_frame, text="📋 Дополнительная информация об устройстве",
+                                font=("Arial", 12, "bold"))
+        title_label.pack(pady=(0, 20))
+
+        # Создаем скроллируемую область
+        canvas = tk.Canvas(main_frame)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Направление
+        direction_frame = ttk.LabelFrame(scrollable_frame, text="Направление / Филиал", padding="10")
+        direction_frame.pack(fill=tk.X, pady=(0, 15))
+
+        self.direction_var = tk.StringVar(value="Кванториум")
+        directions = ["Кванториум", "ИтКуб", "Горьковская", "Тореза", "Другой адрес"]
+
+        for direction in directions:
+            ttk.Radiobutton(direction_frame, text=direction, variable=self.direction_var,
+                            value=direction, command=self.on_direction_change).pack(anchor=tk.W)
+
+        # Поле для другого адреса
+        self.other_direction_frame = ttk.Frame(direction_frame)
+        self.other_direction_frame.pack(fill=tk.X, pady=(5, 0))
+
+        ttk.Label(self.other_direction_frame, text="Укажите адрес:").pack(side=tk.LEFT, padx=(20, 10))
+        self.other_direction_entry = ttk.Entry(self.other_direction_frame, width=35)  # Увеличили ширину
+        self.other_direction_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.other_direction_frame.pack_forget()  # Скрываем изначально
+
+        # Инвентарный номер
+        inventory_frame = ttk.LabelFrame(scrollable_frame, text="Инвентарный номер", padding="10")
+        inventory_frame.pack(fill=tk.X, pady=(0, 15))
+
+        self.inventory_entry = ttk.Entry(inventory_frame, font=("Arial", 10))
+        self.inventory_entry.pack(fill=tk.X)
+        ttk.Label(inventory_frame, text="Пример: INV-2023-001", font=("Arial", 8),
+                  foreground="gray").pack(anchor=tk.W, pady=(5, 0))
+
+        # Кабинет
+        room_frame = ttk.LabelFrame(scrollable_frame, text="Кабинет / Расположение", padding="10")
+        room_frame.pack(fill=tk.X, pady=(0, 15))
+
+        self.room_entry = ttk.Entry(room_frame, font=("Arial", 10))
+        self.room_entry.pack(fill=tk.X)
+        ttk.Label(room_frame, text="Пример: 101, Лаб-1, Серверная", font=("Arial", 8),
+                  foreground="gray").pack(anchor=tk.W, pady=(5, 0))
+
+        # Примечание
+        notes_frame = ttk.LabelFrame(scrollable_frame, text="Примечание (необязательно)", padding="10")
+        notes_frame.pack(fill=tk.X, pady=(0, 20))
+
+        self.notes_text = scrolledtext.ScrolledText(notes_frame, height=4, font=("Arial", 9))  # Увеличили высоту
+        self.notes_text.pack(fill=tk.BOTH, expand=True)
+
+        # Кнопки
+        button_frame = ttk.Frame(scrollable_frame)
+        button_frame.pack(fill=tk.X, pady=(10, 0))
+
+        # Основная кнопка отправки
+        self.send_button = ttk.Button(button_frame, text="🚀 Безопасная отправка",
+                                      command=self.submit, style="Accent.TButton")
+        self.send_button.pack(side=tk.RIGHT, padx=(10, 0))
+
+        # Кнопка отмены
+        ttk.Button(button_frame, text="❌ Отмена", command=self.cancel).pack(side=tk.RIGHT)
+
+        # Упаковываем canvas и scrollbar
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Настраиваем стиль для акцентной кнопки
+        style = ttk.Style()
+        style.configure("Accent.TButton", foreground="white", background="#0078D7")
+
+        # Фокус на первое поле
+        self.inventory_entry.focus_set()
+
+    def on_direction_change(self):
+        """Обработчик изменения выбора направления"""
+        if self.direction_var.get() == "Другой адрес":
+            self.other_direction_frame.pack(fill=tk.X, pady=(5, 0))
+            self.other_direction_entry.focus_set()
+        else:
+            self.other_direction_frame.pack_forget()
+
+    def submit(self):
+        """Подтверждение формы"""
+        direction = self.direction_var.get()
+        if direction == "Другой адрес":
+            direction = self.other_direction_entry.get().strip()
+            if not direction:
+                messagebox.showwarning("Предупреждение", "Укажите адрес для варианта 'Другой адрес'")
+                self.other_direction_entry.focus_set()
+                return
+
+        inventory_number = self.inventory_entry.get().strip()
+        if not inventory_number:
+            messagebox.showwarning("Предупреждение", "Заполните поле 'Инвентарный номер'")
+            self.inventory_entry.focus_set()
+            return
+
+        room = self.room_entry.get().strip()
+        if not room:
+            messagebox.showwarning("Предупреждение", "Заполните поле 'Кабинет'")
+            self.room_entry.focus_set()
+            return
+
+        notes = self.notes_text.get(1.0, tk.END).strip()
+
+        self.result = {
+            'direction': direction,
+            'inventory_number': inventory_number,
+            'room': room,
+            'notes': notes
+        }
+
+        # Меняем текст кнопки на время отправки
+        self.send_button.config(text="⏳ Отправка...", state="disabled")
+        self.window.update()
+
+        # Вызываем callback с результатом
+        self.callback(self.result)
+
+    def cancel(self):
+        """Отмена формы"""
+        self.window.destroy()
+        self.callback(None)
+
+
 class SecureSystemInfoCollector:
     def __init__(self, root):
         self.root = root
@@ -37,10 +206,12 @@ class SecureSystemInfoCollector:
         # Переменные для хранения данных
         self.system_data = {}
         self.device_id = ""
+        self.additional_data = {}
 
         self.setup_ui()
 
     def setup_ui(self):
+        # [Остальная часть UI остается без изменений до secure_send_to_server]
         # Основной фрейм
         main_frame = ttk.Frame(self.root, padding="15")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
@@ -101,7 +272,7 @@ class SecureSystemInfoCollector:
 
         # Кнопка безопасной отправки
         self.secure_send_button = ttk.Button(button_frame, text="🚀 Безопасная отправка",
-                                             command=self.secure_send_to_server,
+                                             command=self.show_additional_data_form,
                                              state="disabled")
         self.secure_send_button.pack(side=tk.LEFT, padx=(0, 10))
 
@@ -142,6 +313,31 @@ class SecureSystemInfoCollector:
         server_frame.columnconfigure(1, weight=1)
         auth_frame.columnconfigure(1, weight=1)
         auth_frame.columnconfigure(3, weight=1)
+
+    def show_additional_data_form(self):
+        """Показывает форму дополнительных данных перед отправкой"""
+        if not self.system_data:
+            messagebox.showwarning("Предупреждение", "Сначала выполните сканирование системы!")
+            return
+
+        if not self.jwt_token:
+            messagebox.showwarning("Предупреждение", "Сначала выполните аутентификацию!")
+            return
+
+        AdditionalDataWindow(self.root, self.on_additional_data_complete)
+
+    def on_additional_data_complete(self, additional_data):
+        """Обработчик завершения заполнения дополнительных данных"""
+        if additional_data is None:
+            self.status_label.config(text="Отправка отменена")
+            return
+
+        # Сохраняем дополнительные данные
+        self.additional_data = additional_data
+        # Запускаем отправку
+        self.secure_send_to_server()
+
+    # [Остальные методы остаются без изменений...]
 
     def encrypt_data(self, data):
         """Шифрование данных перед отправкой"""
@@ -522,7 +718,12 @@ class SecureSystemInfoCollector:
                     "os_info": self.system_data["os_info"],
                     "architecture": self.system_data["architecture"],
                     "python_version": self.system_data["python_version"],
-                    "client_version": self.system_data["client_version"]
+                    "client_version": self.system_data["client_version"],
+                    # Добавляем дополнительные данные из формы
+                    "direction": self.additional_data.get('direction', ''),
+                    "inventory_number": self.additional_data.get('inventory_number', ''),
+                    "room": self.additional_data.get('room', ''),
+                    "notes": self.additional_data.get('notes', '')
                 }
 
                 logger.info(f"Preparing to send data for device: {data_to_send['device_id']}")
