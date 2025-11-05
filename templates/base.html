@@ -35,6 +35,9 @@
             margin-bottom: 20px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
+        .download-dropdown .dropdown-menu {
+            min-width: 200px;
+        }
     </style>
 </head>
 <body>
@@ -56,6 +59,9 @@
                     <a class="nav-link {% if request.endpoint == 'web_users' %}active{% endif %}" href="{{ url_for('web_users') }}">
                         <i class="fas fa-users me-2"></i>Пользователи
                     </a>
+                    <a class="nav-link {% if request.endpoint == 'web_logs' %}active{% endif %}" href="{{ url_for('web_logs') }}">
+                        <i class="fas fa-clipboard-list me-2"></i>Логи действий
+                    </a>
                     {% endif %}
                     <a class="nav-link {% if request.endpoint == 'web_settings' %}active{% endif %}" href="{{ url_for('web_settings') }}">
                         <i class="fas fa-cog me-2"></i>Настройки
@@ -74,8 +80,28 @@
                             {% block page_title %}Панель управления{% endblock %}
                         </span>
                         <div class="navbar-text">
-                            <i class="fas fa-user me-2"></i>{{ current_user.username }}
-                            {% if current_user.is_admin %}<span class="badge bg-primary ms-2">Admin</span>{% endif %}
+                            {% if current_user.is_admin and request.endpoint == 'web_devices' %}
+                            <div class="dropdown download-dropdown">
+                                <button class="btn btn-success dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    <i class="fas fa-download me-2"></i>Скачать отчет
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="{{ url_for('download_excel_report') }}">
+                                        <i class="fas fa-file-excel text-success me-2"></i>Excel (.xlsx)
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('download_pdf_report') }}">
+                                        <i class="fas fa-file-pdf text-danger me-2"></i>PDF (.pdf)
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('download_docx_report') }}">
+                                        <i class="fas fa-file-word text-primary me-2"></i>Word (.docx)
+                                    </a></li>
+                                </ul>
+                            </div>
+                            {% endif %}
+                            <span class="ms-3">
+                                <i class="fas fa-user me-2"></i>{{ current_user.username }}
+                                {% if current_user.is_admin %}<span class="badge bg-primary ms-2">Admin</span>{% endif %}
+                            </span>
                         </div>
                     </div>
                 </nav>

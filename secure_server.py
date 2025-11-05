@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, redirect, url_for, flash
+from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, send_file
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_bcrypt import Bcrypt
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -8,6 +8,23 @@ from datetime import datetime, timedelta
 import sqlite3
 from threading import Lock
 import logging
+import io
+from io import BytesIO
+
+# Импорты для генерации отчетов
+import pandas as pd
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.lib.units import inch
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill
+from docx import Document
+from docx.shared import Inches
+import tempfile
 
 from config import Config
 
@@ -80,7 +97,6 @@ def check_and_update_database():
     """Проверка и обновление структуры базы данных"""
     logger.info("Checking database structure...")
 
-    # Создаем отдельное соединение для миграции
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -110,6 +126,20 @@ def check_and_update_database():
                 except Exception as e:
                     logger.error(f"Error adding column {column_name}: {e}")
                     continue
+
+        # Создаем таблицу для логов действий
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS action_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                username TEXT,
+                action TEXT,
+                details TEXT,
+                ip_address TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
 
         conn.commit()
         logger.info("Database structure update completed")
@@ -182,8 +212,6 @@ def init_database():
     # Запускаем миграцию отдельно после создания базовых таблиц
     check_and_update_database()
 
-
-# [Остальные функции остаются без изменений до момента запуска сервера]
 
 def save_device_data(data):
     """Сохранение или обновление данных устройства"""
@@ -527,6 +555,48 @@ def authenticate_user(username, password):
         conn.close()
 
 
+def log_action(user_id, username, action, details):
+    """Логирование действий пользователей"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            INSERT INTO action_logs (user_id, username, action, details, ip_address)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (user_id, username, action, details, request.remote_addr))
+
+        conn.commit()
+        conn.close()
+
+        logger.info(f"Action logged: {username} - {action} - {details}")
+    except Exception as e:
+        logger.error(f"Error logging action: {e}")
+
+
+def get_action_logs(limit=100):
+    """Получение логов действий"""
+    with db_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute('''
+                SELECT * FROM action_logs 
+                ORDER BY timestamp DESC 
+                LIMIT ?
+            ''', (limit,))
+            logs = []
+            for row in cursor.fetchall():
+                logs.append(dict(row))
+            return logs
+        except Exception as e:
+            logger.error(f"Error getting action logs: {e}")
+            return []
+        finally:
+            conn.close()
+
+
 def encrypt_data(data):
     """Шифрование данных"""
     try:
@@ -551,6 +621,202 @@ def decrypt_data(encrypted_data):
         raise
 
 
+# ==================== ФУНКЦИИ ГЕНЕРАЦИИ ОТЧЕТОВ ====================
+
+def generate_excel_report(devices):
+    """Генерация отчета в формате Excel"""
+    try:
+        # Создаем workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Устройства"
+
+        # Заголовки
+        headers = [
+            'ID устройства', 'Имя компьютера', 'MAC адрес', 'Процессор',
+            'Видеокарта', 'Память', 'Диски', 'ОС', 'Архитектура',
+            'Python версия', 'Направление', 'Инвентарный номер',
+            'Кабинет', 'Примечание', 'Последнее обновление'
+        ]
+
+        # Стили для заголовков
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+
+        # Записываем заголовки
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+
+        # Записываем данные
+        for row, device in enumerate(devices, 2):
+            ws.cell(row=row, column=1, value=device.get('device_id', ''))
+            ws.cell(row=row, column=2, value=device.get('computer_name', ''))
+            ws.cell(row=row, column=3, value=device.get('mac_address', ''))
+            ws.cell(row=row, column=4, value=device.get('cpu_info', ''))
+            ws.cell(row=row, column=5, value=device.get('gpu_info', ''))
+            ws.cell(row=row, column=6, value=device.get('memory_info', ''))
+            ws.cell(row=row, column=7, value=device.get('disk_info', ''))
+            ws.cell(row=row, column=8, value=device.get('os_info', ''))
+            ws.cell(row=row, column=9, value=device.get('architecture', ''))
+            ws.cell(row=row, column=10, value=device.get('python_version', ''))
+            ws.cell(row=row, column=11, value=device.get('direction', ''))
+            ws.cell(row=row, column=12, value=device.get('inventory_number', ''))
+            ws.cell(row=row, column=13, value=device.get('room', ''))
+            ws.cell(row=row, column=14, value=device.get('notes', ''))
+            ws.cell(row=row, column=15, value=device.get('last_updated', ''))
+
+        # Авто-ширина колонок
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min((max_length + 2), 50)
+            ws.column_dimensions[column_letter].width = adjusted_width
+
+        # Сохраняем в bytes
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        return buffer
+
+    except Exception as e:
+        logger.error(f"Error generating Excel report: {e}")
+        raise
+
+
+def generate_pdf_report(devices):
+    """Генерация отчета в формате PDF"""
+    try:
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+        elements = []
+
+        # Стили
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=16,
+            spaceAfter=30,
+            alignment=1,  # Center
+            textColor=colors.HexColor('#2c3e50')
+        )
+
+        # Заголовок
+        title = Paragraph("ОТЧЕТ ПО УСТРОЙСТВАМ", title_style)
+        elements.append(title)
+
+        # Информация о генерации
+        info_style = ParagraphStyle(
+            'InfoStyle',
+            parent=styles['Normal'],
+            fontSize=10,
+            textColor=colors.gray
+        )
+        info_text = f"Сгенерировано: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Всего устройств: {len(devices)}"
+        elements.append(Paragraph(info_text, info_style))
+        elements.append(Spacer(1, 20))
+
+        # Таблица с данными
+        if devices:
+            # Подготовка данных для таблицы
+            table_data = [['ID устройства', 'Компьютер', 'Направление', 'Инв. номер', 'Кабинет']]
+
+            for device in devices:
+                table_data.append([
+                    device.get('device_id', '')[:8],
+                    device.get('computer_name', '')[:20],
+                    device.get('direction', '')[:15],
+                    device.get('inventory_number', '')[:10],
+                    device.get('room', '')[:10]
+                ])
+
+            # Создание таблицы
+            table = Table(table_data, colWidths=[1 * inch, 1.5 * inch, 1.2 * inch, 1 * inch, 0.8 * inch])
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#34495e')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            elements.append(table)
+
+        else:
+            elements.append(Paragraph("Нет данных для отображения", styles['Normal']))
+
+        doc.build(elements)
+        buffer.seek(0)
+        return buffer
+
+    except Exception as e:
+        logger.error(f"Error generating PDF report: {e}")
+        raise
+
+
+def generate_docx_report(devices):
+    """Генерация отчета в формате Word"""
+    try:
+        doc = Document()
+
+        # Заголовок
+        title = doc.add_heading('ОТЧЕТ ПО УСТРОЙСТВАМ', 0)
+        title.alignment = 1  # Center
+
+        # Информация о генерации
+        doc.add_paragraph(f"Сгенерировано: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        doc.add_paragraph(f"Всего устройств: {len(devices)}")
+        doc.add_paragraph()
+
+        if devices:
+            # Создаем таблицу
+            table = doc.add_table(rows=1, cols=5)
+            table.style = 'Table Grid'
+
+            # Заголовки таблицы
+            hdr_cells = table.rows[0].cells
+            headers = ['ID устройства', 'Компьютер', 'Направление', 'Инв. номер', 'Кабинет']
+            for i, header in enumerate(headers):
+                hdr_cells[i].text = header
+                hdr_cells[i].paragraphs[0].runs[0].bold = True
+
+            # Данные устройств
+            for device in devices:
+                row_cells = table.add_row().cells
+                row_cells[0].text = device.get('device_id', '')[:8]
+                row_cells[1].text = device.get('computer_name', '')[:20]
+                row_cells[2].text = device.get('direction', '')[:15]
+                row_cells[3].text = device.get('inventory_number', '')[:10]
+                row_cells[4].text = device.get('room', '')[:10]
+
+        else:
+            doc.add_paragraph('Нет данных для отображения')
+
+        # Сохраняем в buffer
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        return buffer
+
+    except Exception as e:
+        logger.error(f"Error generating DOCX report: {e}")
+        raise
+
+
 # Инициализация базы данных при старте
 try:
     logger.info("Starting database initialization...")
@@ -558,11 +824,10 @@ try:
     logger.info("Database initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize database: {e}")
-    # Пытаемся продолжить работу, даже если миграция не удалась
     logger.info("Continuing with basic functionality...")
 
 
-# [Остальные маршруты и запуск сервера остаются без изменений]
+# ==================== ВЕБ-МАРШРУТЫ С АВТОРИЗАЦИЕЙ ====================
 
 @app.route('/')
 @login_required
@@ -572,6 +837,10 @@ def index():
         devices_count = len(get_all_devices())
         deleted_devices_count = len(get_deleted_devices())
         users_count = len(get_all_users())
+
+        # Логируем просмотр главной страницы
+        log_action(current_user.id, current_user.username, 'view_page', 'Просмотр главной страницы')
+
         return render_template('dashboard.html',
                                devices_count=devices_count,
                                deleted_devices_count=deleted_devices_count,
@@ -580,7 +849,12 @@ def index():
     except Exception as e:
         logger.error(f"Error in index route: {e}")
         flash('Ошибка загрузки данных', 'error')
-        return render_template('dashboard.html', current_user=current_user)
+        # Передаем значения по умолчанию при ошибке
+        return render_template('dashboard.html',
+                               devices_count=0,
+                               deleted_devices_count=0,
+                               users_count=0,
+                               current_user=current_user)
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -597,10 +871,16 @@ def web_login():
         user = authenticate_user(username, password)
         if user:
             login_user(user, remember=remember)
+
+            # Логируем успешный вход
+            log_action(user.id, user.username, 'login', 'Успешный вход в систему')
+
             next_page = request.args.get('next')
             flash(f'Добро пожаловать, {username}!', 'success')
             return redirect(next_page or url_for('index'))
         else:
+            # Логируем неудачную попытку входа
+            log_action(None, username, 'login_failed', 'Неудачная попытка входа')
             flash('Неверное имя пользователя или пароль', 'error')
 
     return render_template('login.html')
@@ -610,6 +890,9 @@ def web_login():
 @login_required
 def web_logout():
     """Выход из системы"""
+    # Логируем выход
+    log_action(current_user.id, current_user.username, 'logout', 'Выход из системы')
+
     logout_user()
     flash('Вы вышли из системы', 'info')
     return redirect(url_for('web_login'))
@@ -627,6 +910,7 @@ def web_devices():
         directions = get_unique_directions()
         duplicates = get_duplicate_inventory_numbers()
 
+        # Применяем фильтры
         if direction_filter:
             devices = [d for d in devices if d.get('direction') == direction_filter]
 
@@ -637,17 +921,27 @@ def web_devices():
                        search_lower in d.get('inventory_number', '').lower() or
                        search_lower in d.get('device_id', '').lower()]
 
+        # Логируем просмотр устройств
+        log_action(current_user.id, current_user.username, 'view_page',
+                   f'Просмотр списка устройств (фильтр: {direction_filter or "нет"})')
+
         return render_template('devices.html',
                                devices=devices,
-                               directions=directions,
-                               duplicates=duplicates,
+                               directions=directions or [],
+                               duplicates=duplicates or {},
                                current_direction=direction_filter,
                                search_query=search_query,
                                current_user=current_user)
     except Exception as e:
         logger.error(f"Error in web_devices route: {e}")
         flash('Ошибка загрузки устройств', 'error')
-        return render_template('devices.html', devices=[], current_user=current_user)
+        return render_template('devices.html',
+                               devices=[],
+                               directions=[],
+                               duplicates={},
+                               current_direction='',
+                               search_query='',
+                               current_user=current_user)
 
 
 @app.route('/device/<device_id>')
@@ -659,6 +953,11 @@ def device_detail(device_id):
         if not device:
             flash('Устройство не найдено', 'error')
             return redirect(url_for('web_devices'))
+
+        # Логируем просмотр устройства
+        log_action(current_user.id, current_user.username, 'view_device',
+                   f'Просмотр устройства {device_id}')
+
         return render_template('device_detail.html', device=device, current_user=current_user)
     except Exception as e:
         logger.error(f"Error in device_detail route: {e}")
@@ -676,6 +975,10 @@ def deleted_devices():
 
     try:
         deleted_devices = get_deleted_devices()
+
+        # Логируем просмотр удаленных устройств
+        log_action(current_user.id, current_user.username, 'view_page', 'Просмотр корзины устройств')
+
         return render_template('deleted_devices.html',
                                devices=deleted_devices,
                                current_user=current_user)
@@ -695,6 +998,10 @@ def web_users():
 
     try:
         users = get_all_users()
+
+        # Логируем просмотр пользователей
+        log_action(current_user.id, current_user.username, 'view_page', 'Просмотр списка пользователей')
+
         return render_template('users.html', users=users, current_user=current_user)
     except Exception as e:
         logger.error(f"Error in web_users route: {e}")
@@ -719,6 +1026,9 @@ def create_user_route():
             return redirect(url_for('web_users'))
 
         if create_user(username, password, is_admin):
+            # Логируем создание пользователя
+            log_action(current_user.id, current_user.username, 'create_user',
+                       f'Создан пользователь {username} (админ: {is_admin})')
             flash(f'Пользователь {username} успешно создан', 'success')
         else:
             flash('Ошибка создания пользователя. Возможно, пользователь уже существует.', 'error')
@@ -740,6 +1050,9 @@ def toggle_user_route(user_id):
 
     try:
         if toggle_user_status(user_id):
+            # Логируем изменение статуса пользователя
+            log_action(current_user.id, current_user.username, 'toggle_user',
+                       f'Изменение статуса пользователя ID {user_id}')
             flash('Статус пользователя изменен', 'success')
         else:
             flash('Ошибка изменения статуса пользователя', 'error')
@@ -764,6 +1077,9 @@ def change_password_route(user_id):
             return redirect(url_for('web_users'))
 
         if update_user_password(user_id, new_password):
+            # Логируем смену пароля
+            log_action(current_user.id, current_user.username, 'change_password',
+                       f'Смена пароля пользователя ID {user_id}')
             flash('Пароль успешно изменен', 'success')
         else:
             flash('Ошибка изменения пароля', 'error')
@@ -784,6 +1100,9 @@ def delete_device_route(device_id):
 
     try:
         if soft_delete_device(device_id):
+            # Логируем удаление устройства
+            log_action(current_user.id, current_user.username, 'delete_device',
+                       f'Удаление устройства {device_id}')
             flash('Устройство перемещено в корзину', 'success')
         else:
             flash('Ошибка удаления устройства', 'error')
@@ -804,6 +1123,9 @@ def restore_device_route(device_id):
 
     try:
         if restore_device(device_id):
+            # Логируем восстановление устройства
+            log_action(current_user.id, current_user.username, 'restore_device',
+                       f'Восстановление устройства {device_id}')
             flash('Устройство восстановлено', 'success')
         else:
             flash('Ошибка восстановления устройства', 'error')
@@ -818,7 +1140,112 @@ def restore_device_route(device_id):
 @login_required
 def web_settings():
     """Страница настроек"""
+    # Логируем просмотр настроек
+    log_action(current_user.id, current_user.username, 'view_page', 'Просмотр страницы настроек')
     return render_template('settings.html', current_user=current_user)
+
+
+# ==================== МАРШРУТЫ ДЛЯ ОТЧЕТОВ И ЛОГОВ ====================
+
+@app.route('/reports/devices/excel')
+@login_required
+def download_excel_report():
+    """Скачивание отчета в формате Excel"""
+    if not current_user.is_admin:
+        flash('Доступ запрещен. Требуются права администратора.', 'error')
+        return redirect(url_for('index'))
+
+    try:
+        devices = get_all_devices()
+        excel_buffer = generate_excel_report(devices)
+
+        # Логируем действие
+        log_action(current_user.id, current_user.username, 'download_report',
+                   f'Скачан отчет Excel с {len(devices)} устройствами')
+
+        filename = f"devices_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        return send_file(excel_buffer,
+                         download_name=filename,
+                         as_attachment=True,
+                         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+    except Exception as e:
+        logger.error(f"Error generating Excel report: {e}")
+        flash('Ошибка генерации отчета Excel', 'error')
+        return redirect(url_for('web_devices'))
+
+
+@app.route('/reports/devices/pdf')
+@login_required
+def download_pdf_report():
+    """Скачивание отчета в формате PDF"""
+    if not current_user.is_admin:
+        flash('Доступ запрещен. Требуются права администратора.', 'error')
+        return redirect(url_for('index'))
+
+    try:
+        devices = get_all_devices()
+        pdf_buffer = generate_pdf_report(devices)
+
+        # Логируем действие
+        log_action(current_user.id, current_user.username, 'download_report',
+                   f'Скачан отчет PDF с {len(devices)} устройствами')
+
+        filename = f"devices_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        return send_file(pdf_buffer,
+                         download_name=filename,
+                         as_attachment=True,
+                         mimetype='application/pdf')
+
+    except Exception as e:
+        logger.error(f"Error generating PDF report: {e}")
+        flash('Ошибка генерации отчета PDF', 'error')
+        return redirect(url_for('web_devices'))
+
+
+@app.route('/reports/devices/docx')
+@login_required
+def download_docx_report():
+    """Скачивание отчета в формате Word"""
+    if not current_user.is_admin:
+        flash('Доступ запрещен. Требуются права администратора.', 'error')
+        return redirect(url_for('index'))
+
+    try:
+        devices = get_all_devices()
+        docx_buffer = generate_docx_report(devices)
+
+        # Логируем действие
+        log_action(current_user.id, current_user.username, 'download_report',
+                   f'Скачан отчет Word с {len(devices)} устройствами')
+
+        filename = f"devices_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
+        return send_file(docx_buffer,
+                         download_name=filename,
+                         as_attachment=True,
+                         mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+
+    except Exception as e:
+        logger.error(f"Error generating DOCX report: {e}")
+        flash('Ошибка генерации отчета Word', 'error')
+        return redirect(url_for('web_devices'))
+
+
+@app.route('/logs')
+@login_required
+def web_logs():
+    """Страница просмотра логов действий"""
+    if not current_user.is_admin:
+        flash('Доступ запрещен. Требуются права администратора.', 'error')
+        return redirect(url_for('index'))
+
+    try:
+        logs = get_action_logs(limit=100)
+        return render_template('logs.html', logs=logs, current_user=current_user)
+    except Exception as e:
+        logger.error(f"Error in web_logs route: {e}")
+        flash('Ошибка загрузки логов', 'error')
+        return render_template('logs.html', logs=[], current_user=current_user)
 
 
 # ==================== API МАРШРУТЫ ====================

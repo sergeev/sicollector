@@ -9,7 +9,7 @@
         <div class="stat-card">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h3 class="text-primary">{{ devices_count }}</h3>
+                    <h3 class="text-primary">{{ devices_count|default(0) }}</h3>
                     <p class="text-muted mb-0">Активных устройств</p>
                 </div>
                 <div class="bg-primary rounded-circle p-3">
@@ -22,7 +22,7 @@
         <div class="stat-card">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h3 class="text-warning">{{ deleted_devices_count }}</h3>
+                    <h3 class="text-warning">{{ deleted_devices_count|default(0) }}</h3>
                     <p class="text-muted mb-0">Удаленных устройств</p>
                 </div>
                 <div class="bg-warning rounded-circle p-3">
@@ -35,7 +35,7 @@
         <div class="stat-card">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h3 class="text-success">{{ users_count }}</h3>
+                    <h3 class="text-success">{{ users_count|default(0) }}</h3>
                     <p class="text-muted mb-0">Пользователей</p>
                 </div>
                 <div class="bg-success rounded-circle p-3">
@@ -63,7 +63,7 @@
                         </li>
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             Активных устройств
-                            <span class="badge bg-info">{{ devices_count }}</span>
+                            <span class="badge bg-info">{{ devices_count|default(0) }}</span>
                         </li>
                     </ul>
                 </div>
@@ -79,7 +79,7 @@
                         </li>
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             Удаленных устройств
-                            <span class="badge bg-secondary">{{ deleted_devices_count }}</span>
+                            <span class="badge bg-secondary">{{ deleted_devices_count|default(0) }}</span>
                         </li>
                     </ul>
                 </div>
@@ -127,19 +127,25 @@
             <div class="row text-center mt-3">
                 <div class="col-md-4">
                     <div class="p-3 bg-light rounded">
-                        <h5 class="text-primary">{{ ((devices_count / (devices_count + deleted_devices_count)) * 100)|round|int if (devices_count + deleted_devices_count) > 0 else 0 }}%</h5>
+                        {% set total_devices = (devices_count|default(0) + deleted_devices_count|default(0)) %}
+                        {% if total_devices > 0 %}
+                            {% set active_percentage = ((devices_count|default(0) / total_devices) * 100)|round|int %}
+                        {% else %}
+                            {% set active_percentage = 0 %}
+                        {% endif %}
+                        <h5 class="text-primary">{{ active_percentage }}%</h5>
                         <small class="text-muted">Активных устройств</small>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="p-3 bg-light rounded">
-                        <h5 class="text-success">{{ users_count }}</h5>
+                        <h5 class="text-success">{{ users_count|default(0) }}</h5>
                         <small class="text-muted">Всего пользователей</small>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="p-3 bg-light rounded">
-                        <h5 class="text-info">{{ devices_count + deleted_devices_count }}</h5>
+                        <h5 class="text-info">{{ total_devices }}</h5>
                         <small class="text-muted">Всего устройств в системе</small>
                     </div>
                 </div>

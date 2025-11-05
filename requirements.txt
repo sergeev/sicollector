@@ -8,3 +8,7 @@ cryptography>=46.0.3
 gunicorn>=23.0.0
 pycryptodome>=3.23.0
 flask_login>=0.6.3
+pandas==2.3.3
+openpyxl==3.1.5
+python-docx==1.2.0
+reportlab==4.4.4
