@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Удаленные устройства - System Info Collector{% endblock %}
+{% block page_title %}🗑️ Удаленные устройства{% endblock %}
+
+{% block content %}
+<div class="stat-card">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4><i class="fas fa-trash me-2"></i>Корзина</h4>
+        <div>
+            <a href="{{ url_for('web_devices') }}" class="btn btn-outline-primary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>К активным устройствам
+            </a>
+            <span class="badge bg-secondary ms-2">Всего: {{ devices|length }}</span>
+        </div>
+    </div>
+
+    {% if devices %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        Внимание: Удаленные устройства хранятся в корзине 30 дней, после чего будут окончательно удалены.
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID устройства</th>
+                    <th>Имя компьютера</th>
+                    <th>Направление</th>
+                    <th>Инвентарный номер</th>
+                    <th>Кабинет</th>
+                    <th>Удалено</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for device in devices %}
+                <tr>
+                    <td><code>{{ device.device_id }}</code></td>
+                    <td>{{ device.computer_name }}</td>
+                    <td>{{ device.direction or '-' }}</td>
+                    <td>{{ device.inventory_number or '-' }}</td>
+                    <td>{{ device.room or '-' }}</td>
+                    <td>
+                        <small>{{ device.deleted_at[:16] if device.deleted_at else 'Неизвестно' }}</small>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('device_detail', device_id=device.device_id) }}"
+                           class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        <form action="{{ url_for('restore_device_route', device_id=device.device_id) }}" method="POST" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-outline-success"
+                                    onclick="return confirm('Восстановить устройство {{ device.device_id }}?')">
+                                <i class="fas fa-undo"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="fas fa-trash fa-3x text-muted mb-3"></i>
+        <h5 class="text-muted">Корзина пуста</h5>
+        <p class="text-muted">Нет удаленных устройств</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

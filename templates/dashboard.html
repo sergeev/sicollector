@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 
 {% block title %}Панель управления - System Info Collector{% endblock %}
-{% block page_title %}Панель управления{% endblock %}
+{% block page_title %}📊 Панель управления{% endblock %}
 
 {% block content %}
 <div class="row">
-    <div class="col-md-6">
+    <div class="col-md-4">
         <div class="stat-card">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h3 class="text-primary">{{ devices_count }}</h3>
-                    <p class="text-muted mb-0">Всего устройств</p>
+                    <p class="text-muted mb-0">Активных устройств</p>
                 </div>
                 <div class="bg-primary rounded-circle p-3">
                     <i class="fas fa-desktop text-white fa-2x"></i>
@@ -18,7 +18,20 @@
             </div>
         </div>
     </div>
-    <div class="col-md-6">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h3 class="text-warning">{{ deleted_devices_count }}</h3>
+                    <p class="text-muted mb-0">Удаленных устройств</p>
+                </div>
+                <div class="bg-warning rounded-circle p-3">
+                    <i class="fas fa-trash text-white fa-2x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
         <div class="stat-card">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
@@ -42,11 +55,15 @@
                     <ul class="list-group">
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             Версия сервера
-                            <span class="badge bg-primary">v2.0</span>
+                            <span class="badge bg-primary">v2.1</span>
                         </li>
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             База данных
                             <span class="badge bg-success">SQLite</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Активных устройств
+                            <span class="badge bg-info">{{ devices_count }}</span>
                         </li>
                     </ul>
                 </div>
@@ -60,6 +77,10 @@
                             Шифрование
                             <span class="badge bg-warning">AES-256</span>
                         </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Удаленных устройств
+                            <span class="badge bg-secondary">{{ deleted_devices_count }}</span>
+                        </li>
                     </ul>
                 </div>
             </div>
@@ -72,22 +93,55 @@
         <div class="stat-card">
             <h4><i class="fas fa-rocket me-2"></i>Быстрые действия</h4>
             <div class="row mt-3">
-                <div class="col-md-4 mb-2">
+                <div class="col-md-3 mb-2">
                     <a href="{{ url_for('web_devices') }}" class="btn btn-outline-primary w-100">
                         <i class="fas fa-desktop me-2"></i>Просмотр устройств
                     </a>
                 </div>
                 {% if current_user.is_admin %}
-                <div class="col-md-4 mb-2">
+                <div class="col-md-3 mb-2">
+                    <a href="{{ url_for('deleted_devices') }}" class="btn btn-outline-warning w-100">
+                        <i class="fas fa-trash me-2"></i>Корзина
+                    </a>
+                </div>
+                <div class="col-md-3 mb-2">
                     <a href="{{ url_for('web_users') }}" class="btn btn-outline-success w-100">
                         <i class="fas fa-users me-2"></i>Управление пользователями
                     </a>
                 </div>
                 {% endif %}
-                <div class="col-md-4 mb-2">
+                <div class="col-md-3 mb-2">
                     <a href="{{ url_for('web_settings') }}" class="btn btn-outline-info w-100">
                         <i class="fas fa-cog me-2"></i>Настройки
                     </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="stat-card">
+            <h4><i class="fas fa-chart-bar me-2"></i>Статистика</h4>
+            <div class="row text-center mt-3">
+                <div class="col-md-4">
+                    <div class="p-3 bg-light rounded">
+                        <h5 class="text-primary">{{ ((devices_count / (devices_count + deleted_devices_count)) * 100)|round|int if (devices_count + deleted_devices_count) > 0 else 0 }}%</h5>
+                        <small class="text-muted">Активных устройств</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 bg-light rounded">
+                        <h5 class="text-success">{{ users_count }}</h5>
+                        <small class="text-muted">Всего пользователей</small>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 bg-light rounded">
+                        <h5 class="text-info">{{ devices_count + deleted_devices_count }}</h5>
+                        <small class="text-muted">Всего устройств в системе</small>
+                    </div>
                 </div>
             </div>
         </div>

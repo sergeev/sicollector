@@ -51,7 +51,7 @@ class User(UserMixin):
     def __init__(self, id, username, is_admin=False):
         self.id = id
         self.username = username
-        self.is_admin = bool(is_admin)  # Преобразуем в boolean
+        self.is_admin = bool(is_admin)
 
 
 def get_db_connection():
@@ -71,10 +71,54 @@ def load_user(user_id):
     conn.close()
 
     if user_data:
-        # Исправление: используем индексацию вместо метода get
         is_admin = user_data['is_admin'] if 'is_admin' in user_data.keys() else False
         return User(user_data['id'], user_data['username'], is_admin)
     return None
+
+
+def check_and_update_database():
+    """Проверка и обновление структуры базы данных"""
+    logger.info("Checking database structure...")
+
+    # Создаем отдельное соединение для миграции
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    try:
+        # Получаем информацию о таблице devices
+        cursor.execute("PRAGMA table_info(devices)")
+        columns = [column[1] for column in cursor.fetchall()]
+        logger.info(f"Existing columns in devices table: {columns}")
+
+        # Список новых колонок для добавления
+        new_columns = [
+            ('direction', 'TEXT'),
+            ('inventory_number', 'TEXT'),
+            ('room', 'TEXT'),
+            ('notes', 'TEXT'),
+            ('is_deleted', 'BOOLEAN DEFAULT 0'),
+            ('deleted_at', 'DATETIME')
+        ]
+
+        # Добавляем отсутствующие колонки
+        for column_name, column_type in new_columns:
+            if column_name not in columns:
+                logger.info(f"Adding column {column_name} to devices table")
+                try:
+                    cursor.execute(f'ALTER TABLE devices ADD COLUMN {column_name} {column_type}')
+                    logger.info(f"Column {column_name} added successfully")
+                except Exception as e:
+                    logger.error(f"Error adding column {column_name}: {e}")
+                    continue
+
+        conn.commit()
+        logger.info("Database structure update completed")
+
+    except Exception as e:
+        logger.error(f"Error updating database structure: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
 
 
 def init_database():
@@ -86,7 +130,7 @@ def init_database():
         cursor = conn.cursor()
 
         try:
-            # Таблица устройств
+            # Таблица устройств (базовая структура)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS devices (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -135,6 +179,11 @@ def init_database():
         finally:
             conn.close()
 
+    # Запускаем миграцию отдельно после создания базовых таблиц
+    check_and_update_database()
+
+
+# [Остальные функции остаются без изменений до момента запуска сервера]
 
 def save_device_data(data):
     """Сохранение или обновление данных устройства"""
@@ -153,26 +202,37 @@ def save_device_data(data):
                     UPDATE devices SET 
                     computer_name = ?, mac_address = ?, cpu_info = ?, gpu_info = ?,
                     memory_info = ?, disk_info = ?, os_info = ?, architecture = ?,
-                    python_version = ?, ip_address = ?, last_updated = CURRENT_TIMESTAMP
+                    python_version = ?, ip_address = ?, last_updated = CURRENT_TIMESTAMP,
+                    direction = ?, inventory_number = ?, room = ?, notes = ?
                     WHERE device_id = ?
                 ''', (
                     data['computer_name'], data['mac_address'], data['cpu_info'],
                     data['gpu_info'], data['memory_info'], data['disk_info'],
                     data['os_info'], data['architecture'], data['python_version'],
-                    request.remote_addr, data['device_id']
+                    request.remote_addr,
+                    data.get('direction', ''),
+                    data.get('inventory_number', ''),
+                    data.get('room', ''),
+                    data.get('notes', ''),
+                    data['device_id']
                 ))
             else:
                 # Вставляем новую запись
                 cursor.execute('''
                     INSERT INTO devices 
                     (device_id, computer_name, mac_address, cpu_info, gpu_info,
-                     memory_info, disk_info, os_info, architecture, python_version, ip_address)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     memory_info, disk_info, os_info, architecture, python_version, ip_address,
+                     direction, inventory_number, room, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     data['device_id'], data['computer_name'], data['mac_address'],
                     data['cpu_info'], data['gpu_info'], data['memory_info'],
                     data['disk_info'], data['os_info'], data['architecture'],
-                    data['python_version'], request.remote_addr
+                    data['python_version'], request.remote_addr,
+                    data.get('direction', ''),
+                    data.get('inventory_number', ''),
+                    data.get('room', ''),
+                    data.get('notes', '')
                 ))
 
             conn.commit()
@@ -187,8 +247,41 @@ def save_device_data(data):
             conn.close()
 
 
-def get_all_devices():
+def get_all_devices(include_deleted=False):
     """Получение всех устройств"""
+    with db_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            if include_deleted:
+                cursor.execute('''
+                    SELECT * FROM devices 
+                    ORDER BY last_updated DESC
+                ''')
+            else:
+                cursor.execute('''
+                    SELECT * FROM devices 
+                    WHERE is_deleted = 0 OR is_deleted IS NULL
+                    ORDER BY last_updated DESC
+                ''')
+            devices = []
+            for row in cursor.fetchall():
+                device_dict = dict(row)
+                for field in ['direction', 'inventory_number', 'room', 'notes']:
+                    if field not in device_dict or device_dict[field] is None:
+                        device_dict[field] = ''
+                devices.append(device_dict)
+            return devices
+        except Exception as e:
+            logger.error(f"Error getting devices: {e}")
+            return []
+        finally:
+            conn.close()
+
+
+def get_deleted_devices():
+    """Получение удаленных устройств"""
     with db_lock:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -196,15 +289,19 @@ def get_all_devices():
         try:
             cursor.execute('''
                 SELECT * FROM devices 
-                ORDER BY last_updated DESC
+                WHERE is_deleted = 1
+                ORDER BY deleted_at DESC
             ''')
             devices = []
             for row in cursor.fetchall():
-                # Преобразуем sqlite3.Row в обычный словарь
-                devices.append(dict(row))
+                device_dict = dict(row)
+                for field in ['direction', 'inventory_number', 'room', 'notes']:
+                    if field not in device_dict or device_dict[field] is None:
+                        device_dict[field] = ''
+                devices.append(device_dict)
             return devices
         except Exception as e:
-            logger.error(f"Error getting devices: {e}")
+            logger.error(f"Error getting deleted devices: {e}")
             return []
         finally:
             conn.close()
@@ -219,7 +316,13 @@ def get_device(device_id):
         try:
             cursor.execute('SELECT * FROM devices WHERE device_id = ?', (device_id,))
             device = cursor.fetchone()
-            return dict(device) if device else None
+            if device:
+                device_dict = dict(device)
+                for field in ['direction', 'inventory_number', 'room', 'notes']:
+                    if field not in device_dict or device_dict[field] is None:
+                        device_dict[field] = ''
+                return device_dict
+            return None
         except Exception as e:
             logger.error(f"Error getting device {device_id}: {e}")
             return None
@@ -246,6 +349,164 @@ def get_all_users():
             conn.close()
 
 
+def create_user(username, password, is_admin=False):
+    """Создание нового пользователя"""
+    with db_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+            cursor.execute('''
+                INSERT INTO users (username, password_hash, is_admin)
+                VALUES (?, ?, ?)
+            ''', (username, password_hash, is_admin))
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+        except Exception as e:
+            logger.error(f"Error creating user: {e}")
+            return False
+        finally:
+            conn.close()
+
+
+def update_user_password(user_id, new_password):
+    """Обновление пароля пользователя"""
+    with db_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
+            cursor.execute('''
+                UPDATE users SET password_hash = ? WHERE id = ?
+            ''', (password_hash, user_id))
+            conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error updating user password: {e}")
+            return False
+        finally:
+            conn.close()
+
+
+def toggle_user_status(user_id):
+    """Блокировка/разблокировка пользователя"""
+    with db_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute('SELECT is_active FROM users WHERE id = ?', (user_id,))
+            current_status = cursor.fetchone()
+            if current_status:
+                new_status = not current_status['is_active']
+                cursor.execute('''
+                    UPDATE users SET is_active = ? WHERE id = ?
+                ''', (new_status, user_id))
+                conn.commit()
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error toggling user status: {e}")
+            return False
+        finally:
+            conn.close()
+
+
+def soft_delete_device(device_id):
+    """Мягкое удаление устройства"""
+    with db_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute('''
+                UPDATE devices SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP
+                WHERE device_id = ?
+            ''', (device_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Error soft deleting device: {e}")
+            return False
+        finally:
+            conn.close()
+
+
+def restore_device(device_id):
+    """Восстановление устройства"""
+    with db_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute('''
+                UPDATE devices SET is_deleted = 0, deleted_at = NULL
+                WHERE device_id = ?
+            ''', (device_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Error restoring device: {e}")
+            return False
+        finally:
+            conn.close()
+
+
+def get_duplicate_inventory_numbers():
+    """Поиск дублирующихся инвентарных номеров"""
+    with db_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute('''
+                SELECT inventory_number, COUNT(*) as count
+                FROM devices 
+                WHERE inventory_number IS NOT NULL 
+                AND inventory_number != '' 
+                AND (is_deleted = 0 OR is_deleted IS NULL)
+                GROUP BY inventory_number 
+                HAVING COUNT(*) > 1
+            ''')
+            duplicates = {}
+            for row in cursor.fetchall():
+                duplicates[row['inventory_number']] = row['count']
+            return duplicates
+        except Exception as e:
+            logger.error(f"Error getting duplicate inventory numbers: {e}")
+            return {}
+        finally:
+            conn.close()
+
+
+def get_unique_directions():
+    """Получение уникальных направлений"""
+    with db_lock:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute('''
+                SELECT DISTINCT direction 
+                FROM devices 
+                WHERE direction IS NOT NULL 
+                AND direction != '' 
+                AND (is_deleted = 0 OR is_deleted IS NULL)
+                ORDER BY direction
+            ''')
+            directions = [row['direction'] for row in cursor.fetchall()]
+            return directions
+        except Exception as e:
+            logger.error(f"Error getting unique directions: {e}")
+            return []
+        finally:
+            conn.close()
+
+
 def authenticate_user(username, password):
     """Аутентификация пользователя"""
     conn = get_db_connection()
@@ -256,7 +517,6 @@ def authenticate_user(username, password):
         user_row = cursor.fetchone()
 
         if user_row and bcrypt.check_password_hash(user_row['password_hash'], password):
-            # Исправление: используем индексацию вместо метода get
             is_admin = user_row['is_admin'] if 'is_admin' in user_row.keys() else False
             return User(user_row['id'], user_row['username'], is_admin)
         return None
@@ -293,13 +553,16 @@ def decrypt_data(encrypted_data):
 
 # Инициализация базы данных при старте
 try:
+    logger.info("Starting database initialization...")
     init_database()
     logger.info("Database initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize database: {e}")
+    # Пытаемся продолжить работу, даже если миграция не удалась
+    logger.info("Continuing with basic functionality...")
 
 
-# ==================== ВЕБ-МАРШРУТЫ С АВТОРИЗАЦИЕЙ ====================
+# [Остальные маршруты и запуск сервера остаются без изменений]
 
 @app.route('/')
 @login_required
@@ -307,9 +570,11 @@ def index():
     """Главная страница панели управления"""
     try:
         devices_count = len(get_all_devices())
+        deleted_devices_count = len(get_deleted_devices())
         users_count = len(get_all_users())
         return render_template('dashboard.html',
                                devices_count=devices_count,
+                               deleted_devices_count=deleted_devices_count,
                                users_count=users_count,
                                current_user=current_user)
     except Exception as e:
@@ -355,8 +620,30 @@ def web_logout():
 def web_devices():
     """Страница со списком устройств"""
     try:
+        direction_filter = request.args.get('direction', '')
+        search_query = request.args.get('search', '')
+
         devices = get_all_devices()
-        return render_template('devices.html', devices=devices, current_user=current_user)
+        directions = get_unique_directions()
+        duplicates = get_duplicate_inventory_numbers()
+
+        if direction_filter:
+            devices = [d for d in devices if d.get('direction') == direction_filter]
+
+        if search_query:
+            search_lower = search_query.lower()
+            devices = [d for d in devices if
+                       search_lower in d.get('computer_name', '').lower() or
+                       search_lower in d.get('inventory_number', '').lower() or
+                       search_lower in d.get('device_id', '').lower()]
+
+        return render_template('devices.html',
+                               devices=devices,
+                               directions=directions,
+                               duplicates=duplicates,
+                               current_direction=direction_filter,
+                               search_query=search_query,
+                               current_user=current_user)
     except Exception as e:
         logger.error(f"Error in web_devices route: {e}")
         flash('Ошибка загрузки устройств', 'error')
@@ -379,6 +666,25 @@ def device_detail(device_id):
         return redirect(url_for('web_devices'))
 
 
+@app.route('/devices/deleted')
+@login_required
+def deleted_devices():
+    """Страница с удаленными устройствами"""
+    if not current_user.is_admin:
+        flash('Доступ запрещен. Требуются права администратора.', 'error')
+        return redirect(url_for('index'))
+
+    try:
+        deleted_devices = get_deleted_devices()
+        return render_template('deleted_devices.html',
+                               devices=deleted_devices,
+                               current_user=current_user)
+    except Exception as e:
+        logger.error(f"Error in deleted_devices route: {e}")
+        flash('Ошибка загрузки удаленных устройств', 'error')
+        return render_template('deleted_devices.html', devices=[], current_user=current_user)
+
+
 @app.route('/users')
 @login_required
 def web_users():
@@ -394,6 +700,118 @@ def web_users():
         logger.error(f"Error in web_users route: {e}")
         flash('Ошибка загрузки пользователей', 'error')
         return render_template('users.html', users=[], current_user=current_user)
+
+
+@app.route('/users/create', methods=['POST'])
+@login_required
+def create_user_route():
+    """Создание нового пользователя"""
+    if not current_user.is_admin:
+        return jsonify({'error': 'Доступ запрещен'}), 403
+
+    try:
+        username = request.form.get('username')
+        password = request.form.get('password')
+        is_admin = bool(request.form.get('is_admin'))
+
+        if not username or not password:
+            flash('Заполните все обязательные поля', 'error')
+            return redirect(url_for('web_users'))
+
+        if create_user(username, password, is_admin):
+            flash(f'Пользователь {username} успешно создан', 'success')
+        else:
+            flash('Ошибка создания пользователя. Возможно, пользователь уже существует.', 'error')
+
+        return redirect(url_for('web_users'))
+
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
+        flash('Ошибка создания пользователя', 'error')
+        return redirect(url_for('web_users'))
+
+
+@app.route('/users/<int:user_id>/toggle', methods=['POST'])
+@login_required
+def toggle_user_route(user_id):
+    """Блокировка/разблокировка пользователя"""
+    if not current_user.is_admin:
+        return jsonify({'error': 'Доступ запрещен'}), 403
+
+    try:
+        if toggle_user_status(user_id):
+            flash('Статус пользователя изменен', 'success')
+        else:
+            flash('Ошибка изменения статуса пользователя', 'error')
+        return redirect(url_for('web_users'))
+    except Exception as e:
+        logger.error(f"Error toggling user: {e}")
+        flash('Ошибка изменения статуса пользователя', 'error')
+        return redirect(url_for('web_users'))
+
+
+@app.route('/users/<int:user_id>/password', methods=['POST'])
+@login_required
+def change_password_route(user_id):
+    """Смена пароля пользователя"""
+    if not current_user.is_admin:
+        return jsonify({'error': 'Доступ запрещен'}), 403
+
+    try:
+        new_password = request.form.get('new_password')
+        if not new_password:
+            flash('Введите новый пароль', 'error')
+            return redirect(url_for('web_users'))
+
+        if update_user_password(user_id, new_password):
+            flash('Пароль успешно изменен', 'success')
+        else:
+            flash('Ошибка изменения пароля', 'error')
+        return redirect(url_for('web_users'))
+    except Exception as e:
+        logger.error(f"Error changing password: {e}")
+        flash('Ошибка изменения пароля', 'error')
+        return redirect(url_for('web_users'))
+
+
+@app.route('/device/<device_id>/delete', methods=['POST'])
+@login_required
+def delete_device_route(device_id):
+    """Удаление устройства"""
+    if not current_user.is_admin:
+        flash('Доступ запрещен. Требуются права администратора.', 'error')
+        return redirect(url_for('web_devices'))
+
+    try:
+        if soft_delete_device(device_id):
+            flash('Устройство перемещено в корзину', 'success')
+        else:
+            flash('Ошибка удаления устройства', 'error')
+        return redirect(url_for('web_devices'))
+    except Exception as e:
+        logger.error(f"Error deleting device: {e}")
+        flash('Ошибка удаления устройства', 'error')
+        return redirect(url_for('web_devices'))
+
+
+@app.route('/device/<device_id>/restore', methods=['POST'])
+@login_required
+def restore_device_route(device_id):
+    """Восстановление устройства"""
+    if not current_user.is_admin:
+        flash('Доступ запрещен. Требуются права администратора.', 'error')
+        return redirect(url_for('deleted_devices'))
+
+    try:
+        if restore_device(device_id):
+            flash('Устройство восстановлено', 'success')
+        else:
+            flash('Ошибка восстановления устройства', 'error')
+        return redirect(url_for('deleted_devices'))
+    except Exception as e:
+        logger.error(f"Error restoring device: {e}")
+        flash('Ошибка восстановления устройства', 'error')
+        return redirect(url_for('deleted_devices'))
 
 
 @app.route('/settings')

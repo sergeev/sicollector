@@ -1,69 +1,144 @@
 {% extends "base.html" %}
 
 {% block title %}Пользователи - System Info Collector{% endblock %}
-{% block page_title %}Управление пользователями{% endblock %}
+{% block page_title %}👥 Управление пользователями{% endblock %}
 
 {% block content %}
-<div class="stat-card">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4><i class="fas fa-users me-2"></i>Список пользователей</h4>
-        <span class="badge bg-primary">Всего: {{ users|length }}</span>
+<div class="row">
+    <div class="col-md-8">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4><i class="fas fa-users me-2"></i>Список пользователей</h4>
+                <span class="badge bg-primary">Всего: {{ users|length }}</span>
+            </div>
+
+            {% if users %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Имя пользователя</th>
+                            <th>Роль</th>
+                            <th>Статус</th>
+                            <th>Дата создания</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.id }}</td>
+                            <td>
+                                {{ user.username }}
+                                {% if user.username == current_user.username %}
+                                <span class="badge bg-info">Вы</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.is_admin %}
+                                <span class="badge bg-danger">Администратор</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Пользователь</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.is_active %}
+                                <span class="badge bg-success">Активен</span>
+                                {% else %}
+                                <span class="badge bg-warning">Заблокирован</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ user.created_at[:16] }}</td>
+                            <td>
+                                {% if user.username != current_user.username %}
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-primary"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#passwordModal{{ user.id }}">
+                                        <i class="fas fa-key"></i>
+                                    </button>
+                                    <form action="{{ url_for('toggle_user_route', user_id=user.id) }}" method="POST" style="display: inline;">
+                                        <button type="submit" class="btn btn-outline-{{ 'warning' if user.is_active else 'success' }}"
+                                                onclick="return confirm('{{ 'Заблокировать' if user.is_active else 'Разблокировать' }} пользователя {{ user.username }}?')">
+                                            <i class="fas fa-{{ 'ban' if user.is_active else 'check' }}"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                                {% else %}
+                                <span class="text-muted">Текущий пользователь</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+
+                        <!-- Modal для смены пароля -->
+                        <div class="modal fade" id="passwordModal{{ user.id }}" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Смена пароля для {{ user.username }}</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <form action="{{ url_for('change_password_route', user_id=user.id) }}" method="POST">
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label for="new_password{{ user.id }}" class="form-label">Новый пароль</label>
+                                                <input type="password" class="form-control" id="new_password{{ user.id }}"
+                                                       name="new_password" required minlength="6">
+                                                <div class="form-text">Пароль должен содержать минимум 6 символов</div>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                                            <button type="submit" class="btn btn-primary">Сменить пароль</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">Пользователи не найдены</h5>
+            </div>
+            {% endif %}
+        </div>
     </div>
 
-    {% if users %}
-    <div class="table-responsive">
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Имя пользователя</th>
-                    <th>Роль</th>
-                    <th>Статус</th>
-                    <th>Дата создания</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for user in users %}
-                <tr>
-                    <td>{{ user.id }}</td>
-                    <td>
-                        {{ user.username }}
-                        {% if user.username == current_user.username %}
-                        <span class="badge bg-info">Вы</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if user.is_admin %}
-                        <span class="badge bg-danger">Администратор</span>
-                        {% else %}
-                        <span class="badge bg-secondary">Пользователь</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if user.is_active %}
-                        <span class="badge bg-success">Активен</span>
-                        {% else %}
-                        <span class="badge bg-warning">Неактивен</span>
-                        {% endif %}
-                    </td>
-                    <td>{{ user.created_at[:16] }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="text-center py-5">
-        <i class="fas fa-users fa-3x text-muted mb-3"></i>
-        <h5 class="text-muted">Пользователи не найдены</h5>
-    </div>
-    {% endif %}
-</div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <h4><i class="fas fa-user-plus me-2"></i>Добавить пользователя</h4>
+            <form action="{{ url_for('create_user_route') }}" method="POST">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Имя пользователя</label>
+                    <input type="text" class="form-control" id="username" name="username" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Пароль</label>
+                    <input type="password" class="form-control" id="password" name="password" required minlength="6">
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="is_admin" name="is_admin">
+                    <label class="form-check-label" for="is_admin">Администратор</label>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="fas fa-plus me-2"></i>Создать пользователя
+                </button>
+            </form>
+        </div>
 
-<div class="stat-card mt-4">
-    <h5><i class="fas fa-info-circle me-2"></i>Информация</h5>
-    <p class="text-muted">
-        Для добавления новых пользователей или изменения прав доступа обратитесь к администратору системы.
-    </p>
+        <div class="stat-card mt-4">
+            <h5><i class="fas fa-info-circle me-2"></i>Информация</h5>
+            <ul class="list-unstyled">
+                <li><i class="fas fa-shield-alt text-primary me-2"></i>Только администраторы могут управлять пользователями</li>
+                <li><i class="fas fa-ban text-warning me-2"></i>Заблокированные пользователи не могут войти в систему</li>
+                <li><i class="fas fa-key text-success me-2"></i>Рекомендуется использовать сложные пароли</li>
+            </ul>
+        </div>
+    </div>
 </div>
 {% endblock %}

@@ -65,14 +65,39 @@
         .full-width {
             grid-column: 1 / -1;
         }
+        .admin-actions {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff3cd;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <a href="/" class="back-btn">← Назад к списку</a>
+            <a href="/devices" class="back-btn">← Назад к списку</a>
             <h1>🖥️ Устройство: {{ device.device_id }}</h1>
             <p>Компьютер: {{ device.computer_name }}</p>
+            {% if device.is_deleted %}
+            <div style="background: #dc3545; padding: 10px; border-radius: 5px; margin-top: 10px;">
+                ⚠️ Это устройство удалено
+            </div>
+            {% endif %}
         </div>
 
         <div class="device-info">
@@ -102,6 +127,28 @@
                     <div class="info-item">
                         <div class="info-label">🔄 Последнее обновление</div>
                         <div class="info-value">{{ device.last_updated }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h3>📍 Дополнительная информация</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">🏢 Направление/Адрес</div>
+                        <div class="info-value">{{ device.direction or 'Не указано' }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">🔢 Инвентарный номер</div>
+                        <div class="info-value">{{ device.inventory_number or 'Не указан' }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">🚪 Кабинет</div>
+                        <div class="info-value">{{ device.room or 'Не указан' }}</div>
+                    </div>
+                    <div class="info-item full-width">
+                        <div class="info-label">📝 Примечание</div>
+                        <div class="info-value">{{ device.notes or 'Нет примечаний' }}</div>
                     </div>
                 </div>
             </div>
@@ -148,6 +195,21 @@
                 <div class="info-item full-width">
                     <div class="info-value" style="white-space: pre-line;">{{ device.disk_info }}</div>
                 </div>
+            </div>
+            {% endif %}
+
+            {% if current_user.is_admin %}
+            <div class="admin-actions">
+                <h4>⚙️ Действия администратора</h4>
+                {% if device.is_deleted %}
+                <form action="{{ url_for('restore_device_route', device_id=device.device_id) }}" method="POST" style="display: inline;">
+                    <button type="submit" class="btn" style="background: #28a745; color: white;">🔄 Восстановить устройство</button>
+                </form>
+                {% else %}
+                <form action="{{ url_for('delete_device_route', device_id=device.device_id) }}" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('Вы уверены, что хотите удалить это устройство?')">🗑️ Удалить устройство</button>
+                </form>
+                {% endif %}
             </div>
             {% endif %}
         </div>
