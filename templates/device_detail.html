@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device {{ device.device_id }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 30px;
+        }
+        .back-btn {
+            color: white;
+            text-decoration: none;
+            margin-bottom: 15px;
+            display: inline-block;
+        }
+        .device-info {
+            padding: 30px;
+        }
+        .info-section {
+            margin-bottom: 30px;
+        }
+        .info-section h3 {
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .info-item {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        .info-value {
+            color: #34495e;
+        }
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        .admin-actions {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff3cd;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="/devices" class="back-btn">← Назад к списку</a>
+            <h1>🖥️ Устройство: {{ device.device_id }}</h1>
+            <p>Компьютер: {{ device.computer_name }}</p>
+            {% if device.is_deleted %}
+            <div style="background: #dc3545; padding: 10px; border-radius: 5px; margin-top: 10px;">
+                ⚠️ Это устройство удалено
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="device-info">
+            <div class="info-section">
+                <h3>📋 Основная информация</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">🆔 ID устройства</div>
+                        <div class="info-value">{{ device.device_id }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">💻 Имя компьютера</div>
+                        <div class="info-value">{{ device.computer_name }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">🌐 MAC адрес</div>
+                        <div class="info-value">{{ device.mac_address }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">📡 IP адрес</div>
+                        <div class="info-value">{{ device.ip_address }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">🕐 Первое подключение</div>
+                        <div class="info-value">{{ device.timestamp }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">🔄 Последнее обновление</div>
+                        <div class="info-value">{{ device.last_updated }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h3>📍 Дополнительная информация</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">🏢 Направление/Адрес</div>
+                        <div class="info-value">{{ device.direction or 'Не указано' }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">🔢 Инвентарный номер</div>
+                        <div class="info-value">{{ device.inventory_number or 'Не указан' }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">🚪 Кабинет</div>
+                        <div class="info-value">{{ device.room or 'Не указан' }}</div>
+                    </div>
+                    <div class="info-item full-width">
+                        <div class="info-label">📝 Примечание</div>
+                        <div class="info-value">{{ device.notes or 'Нет примечаний' }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h3>🔧 Системная информация</h3>
+                <div class="info-grid">
+                    <div class="info-item full-width">
+                        <div class="info-label">💿 Операционная система</div>
+                        <div class="info-value">{{ device.os_info }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">🏗️ Архитектура</div>
+                        <div class="info-value">{{ device.architecture }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">🐍 Версия Python</div>
+                        <div class="info-value">{{ device.python_version }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h3>⚙️ Аппаратное обеспечение</h3>
+                <div class="info-grid">
+                    <div class="info-item full-width">
+                        <div class="info-label">🚀 Процессор (CPU)</div>
+                        <div class="info-value">{{ device.cpu_info }}</div>
+                    </div>
+                    <div class="info-item full-width">
+                        <div class="info-label">🎮 Видеокарта (GPU)</div>
+                        <div class="info-value">{{ device.gpu_info }}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">💾 Оперативная память</div>
+                        <div class="info-value">{{ device.memory_info }}</div>
+                    </div>
+                </div>
+            </div>
+
+            {% if device.disk_info %}
+            <div class="info-section">
+                <h3>💽 Диски</h3>
+                <div class="info-item full-width">
+                    <div class="info-value" style="white-space: pre-line;">{{ device.disk_info }}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if current_user.is_admin %}
+            <div class="admin-actions">
+                <h4>⚙️ Действия администратора</h4>
+                {% if device.is_deleted %}
+                <form action="{{ url_for('restore_device_route', device_id=device.device_id) }}" method="POST" style="display: inline;">
+                    <button type="submit" class="btn" style="background: #28a745; color: white;">🔄 Восстановить устройство</button>
+                </form>
+                {% else %}
+                <form action="{{ url_for('delete_device_route', device_id=device.device_id) }}" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger" onclick="return confirm('Вы уверены, что хотите удалить это устройство?')">🗑️ Удалить устройство</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

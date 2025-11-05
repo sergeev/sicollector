@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Устройства - System Info Collector{% endblock %}
+{% block page_title %}💻 Управление устройствами{% endblock %}
+
+{% block content %}
+<div class="stat-card">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4><i class="fas fa-desktop me-2"></i>Список устройств</h4>
+        <div>
+            {% if current_user.is_admin %}
+            <a href="{{ url_for('deleted_devices') }}" class="btn btn-outline-secondary btn-sm me-2">
+                <i class="fas fa-trash me-1"></i>Корзина
+            </a>
+            {% endif %}
+            <span class="badge bg-primary">Всего: {{ devices|length }}</span>
+        </div>
+    </div>
+
+    <!-- Фильтры и поиск -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <label for="directionFilter" class="form-label">Фильтр по направлению</label>
+            <select class="form-select" id="directionFilter" onchange="applyFilters()">
+                <option value="">Все направления</option>
+                {% for direction in directions %}
+                <option value="{{ direction }}" {% if current_direction == direction %}selected{% endif %}>
+                    {{ direction }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-5">
+            <label for="searchInput" class="form-label">Поиск</label>
+            <input type="text" class="form-control" id="searchInput"
+                   placeholder="Поиск по имени, ID или инвентарному номеру..."
+                   value="{{ search_query }}">
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+            <button class="btn btn-outline-primary w-100" onclick="applyFilters()">
+                <i class="fas fa-search me-2"></i>Применить
+            </button>
+        </div>
+    </div>
+
+    {% if duplicates %}
+    <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        Обнаружены дублирующиеся инвентарные номера:
+        {% for inv_num, count in duplicates.items() %}
+        <span class="badge bg-danger ms-1">{{ inv_num }} ({{ count }})</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if current_user.is_admin %}
+    <div class="alert alert-info d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-info-circle me-2"></i>
+            Доступны отчеты в форматах Excel, PDF и Word. Используйте кнопку "Скачать отчет" в верхнем меню.
+        </div>
+    </div>
+    {% endif %}
+
+    {% if devices %}
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>ID устройства</th>
+                    <th>Имя компьютера</th>
+                    <th>Направление</th>
+                    <th>Инвентарный номер</th>
+                    <th>Кабинет</th>
+                    <th>MAC адрес</th>
+                    <th>Обновлено</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for device in devices %}
+                <tr class="{% if device.inventory_number in duplicates %}table-warning{% endif %}">
+                    <td>
+                        <code>{{ device.device_id }}</code>
+                        {% if device.inventory_number in duplicates %}
+                        <i class="fas fa-exclamation-triangle text-danger ms-1"
+                           title="Дублирующийся инвентарный номер"></i>
+                        {% endif %}
+                    </td>
+                    <td>{{ device.computer_name }}</td>
+                    <td>
+                        {% if device.direction %}
+                        <span class="badge bg-info">{{ device.direction }}</span>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if device.inventory_number %}
+                        <code>{{ device.inventory_number }}</code>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ device.room or '-' }}</td>
+                    <td><small class="text-muted">{{ device.mac_address }}</small></td>
+                    <td>
+                        <small>{{ device.last_updated[:16] if device.last_updated else device.timestamp[:16] }}</small>
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{{ url_for('device_detail', device_id=device.device_id) }}"
+                               class="btn btn-outline-primary">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            {% if current_user.is_admin %}
+                            <form action="{{ url_for('delete_device_route', device_id=device.device_id) }}"
+                                  method="POST" style="display: inline;">
+                                <button type="submit" class="btn btn-outline-danger"
+                                        onclick="return confirm('Удалить устройство {{ device.device_id }}?')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+        <h5 class="text-muted">Устройства не найдены</h5>
+        <p class="text-muted">Попробуйте изменить параметры фильтрации</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function applyFilters() {
+    const direction = document.getElementById('directionFilter').value;
+    const search = document.getElementById('searchInput').value;
+
+    let url = '/devices?';
+    const params = [];
+
+    if (direction) params.push(`direction=${encodeURIComponent(direction)}`);
+    if (search) params.push(`search=${encodeURIComponent(search)}`);
+
+    window.location.href = url + params.join('&');
+}
+
+// Автопоиск при нажатии Enter
+document.getElementById('searchInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        applyFilters();
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Info Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #3498db;
+        }
+        .devices-list {
+            padding: 20px;
+        }
+        .device-card {
+            background: white;
+            border: 1px solid #e1e8ed;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+        .device-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .device-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .device-id {
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 1.2em;
+        }
+        .device-computer {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+        .device-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .info-item {
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .timestamp {
+            text-align: right;
+            color: #95a5a6;
+            font-size: 0.9em;
+        }
+        .online { color: #27ae60; }
+        .offline { color: #e74c3c; }
+        .btn {
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🖥️ System Info Dashboard</h1>
+            <p>Мониторинг подключенных устройств</p>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number">{{ devices|length }}</div>
+                <div>Всего устройств</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">
+                    {{ devices|selectattr("timestamp")|list|length }}
+                </div>
+                <div>Активных</div>
+            </div>
+        </div>
+
+        <div class="devices-list">
+            <h2 style="margin-bottom: 20px;">📋 Список устройств</h2>
+
+            {% if devices %}
+                {% for device in devices %}
+                <div class="device-card" onclick="location.href='/device/{{ device.device_id }}'">
+                    <div class="device-header">
+                        <div>
+                            <div class="device-id">🆔 {{ device.device_id }}</div>
+                            <div class="device-computer">💻 {{ device.computer_name }}</div>
+                        </div>
+                        <div class="timestamp">
+                            Обновлено: {{ device.last_updated[:16] }}
+                        </div>
+                    </div>
+
+                    <div class="device-info">
+                        <div class="info-item">
+                            <strong>🔧 CPU:</strong> {{ device.cpu_info[:50] }}{% if device.cpu_info|length > 50 %}...{% endif %}
+                        </div>
+                        <div class="info-item">
+                            <strong>🎮 GPU:</strong> {{ device.gpu_info[:50] }}{% if device.gpu_info|length > 50 %}...{% endif %}
+                        </div>
+                        <div class="info-item">
+                            <strong>💾 Память:</strong> {{ device.memory_info }}
+                        </div>
+                        <div class="info-item">
+                            <strong>🌐 MAC:</strong> {{ device.mac_address }}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="text-align: center; padding: 40px; color: #7f8c8d;">
+                    <h3>📭 Устройства не найдены</h3>
+                    <p>Подключите устройства для отображения данных</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

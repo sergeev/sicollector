@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Логи действий - System Info Collector{% endblock %}
+{% block page_title %}📋 Логи действий пользователей{% endblock %}
+
+{% block content %}
+<div class="stat-card">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4><i class="fas fa-clipboard-list me-2"></i>История действий</h4>
+        <span class="badge bg-primary">Последние 100 записей</span>
+    </div>
+
+    {% if logs %}
+    <div class="table-responsive">
+        <table class="table table-striped table-sm">
+            <thead>
+                <tr>
+                    <th>Время</th>
+                    <th>Пользователь</th>
+                    <th>Действие</th>
+                    <th>Детали</th>
+                    <th>IP адрес</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>
+                        <small>{{ log.timestamp[:16] }}</small>
+                    </td>
+                    <td>
+                        {% if log.user_id %}
+                        <strong>{{ log.username }}</strong>
+                        {% else %}
+                        <span class="text-muted">{{ log.username or 'Неизвестно' }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if log.action == 'login' %}
+                        <span class="badge bg-success">Вход</span>
+                        {% elif log.action == 'logout' %}
+                        <span class="badge bg-secondary">Выход</span>
+                        {% elif log.action == 'login_failed' %}
+                        <span class="badge bg-danger">Неудачный вход</span>
+                        {% elif 'download' in log.action %}
+                        <span class="badge bg-info">Скачивание</span>
+                        {% elif 'view' in log.action %}
+                        <span class="badge bg-primary">Просмотр</span>
+                        {% elif 'create' in log.action or 'delete' in log.action or 'restore' in log.action %}
+                        <span class="badge bg-warning">Изменение</span>
+                        {% else %}
+                        <span class="badge bg-dark">{{ log.action }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <small>{{ log.details }}</small>
+                    </td>
+                    <td>
+                        <code class="small">{{ log.ip_address }}</code>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+        <h5 class="text-muted">Логи не найдены</h5>
+        <p class="text-muted">Действия пользователей еще не записывались.</p>
+    </div>
+    {% endif %}
+</div>
+
+<div class="stat-card mt-4">
+    <h5><i class="fas fa-info-circle me-2"></i>Информация о логах</h5>
+    <div class="row mt-3">
+        <div class="col-md-6">
+            <ul class="list-unstyled">
+                <li><i class="fas fa-check-circle text-success me-2"></i>Логируются все действия пользователей</li>
+                <li><i class="fas fa-eye text-primary me-2"></i>Записываются просмотры страниц</li>
+                <li><i class="fas fa-download text-info me-2"></i>Фиксируются скачивания отчетов</li>
+            </ul>
+        </div>
+        <div class="col-md-6">
+            <ul class="list-unstyled">
+                <li><i class="fas fa-user-plus text-warning me-2"></i>Отслеживаются изменения пользователей</li>
+                <li><i class="fas fa-trash text-danger me-2"></i>Логируются удаления устройств</li>
+                <li><i class="fas fa-history text-secondary me-2"></i>Сохраняется история 100 последних действий</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
