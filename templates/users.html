@@ -141,4 +141,44 @@
         </div>
     </div>
 </div>
+<!-- Добавить в конец файла users.html, перед закрывающим блоком content -->
+{% if current_user.is_admin %}
+<!-- Modal для смены пароля администратора -->
+<div class="modal fade" id="changeAdminPasswordModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Смена пароля администратора</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('change_own_password_route') }}" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="old_password" class="form-label">Старый пароль</label>
+                        <input type="password" class="form-control" id="old_password"
+                               name="old_password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">Новый пароль</label>
+                        <input type="password" class="form-control" id="new_password"
+                               name="new_password" required minlength="6">
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Подтверждение нового пароля</label>
+                        <input type="password" class="form-control" id="confirm_password"
+                               name="confirm_password" required minlength="6">
+                    </div>
+                    <div class="form-text">
+                        Пароль должен содержать минимум 6 символов
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сменить пароль</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

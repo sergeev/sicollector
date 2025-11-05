@@ -407,14 +407,21 @@ def update_user_password(user_id, new_password):
         cursor = conn.cursor()
 
         try:
+            # Получаем информацию о пользователе для логирования
+            cursor.execute('SELECT username FROM users WHERE id = ?', (user_id,))
+            user_data = cursor.fetchone()
+            username = user_data['username'] if user_data else 'Unknown'
+
             password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
             cursor.execute('''
                 UPDATE users SET password_hash = ? WHERE id = ?
             ''', (password_hash, user_id))
             conn.commit()
+
+            logger.info(f"Password updated for user: {username} (ID: {user_id})")
             return True
         except Exception as e:
-            logger.error(f"Error updating user password: {e}")
+            logger.error(f"Error updating user password for ID {user_id}: {e}")
             return False
         finally:
             conn.close()
@@ -1353,6 +1360,54 @@ def health_check():
             'database': 'disconnected',
             'error': str(e)
         }), 500
+
+@app.route('/users/change_own_password', methods=['POST'])
+@login_required
+def change_own_password_route():
+    """Смена пароля текущего пользователя с подтверждением старого пароля"""
+    try:
+        old_password = request.form.get('old_password')
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+
+        if not old_password or not new_password or not confirm_password:
+            flash('Заполните все поля', 'error')
+            return redirect(url_for('web_settings'))
+
+        if new_password != confirm_password:
+            flash('Новый пароль и подтверждение не совпадают', 'error')
+            return redirect(url_for('web_settings'))
+
+        if len(new_password) < 6:
+            flash('Пароль должен содержать минимум 6 символов', 'error')
+            return redirect(url_for('web_settings'))
+
+        # Проверяем старый пароль
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT password_hash FROM users WHERE id = ?', (current_user.id,))
+        user_data = cursor.fetchone()
+        conn.close()
+
+        if not user_data or not bcrypt.check_password_hash(user_data['password_hash'], old_password):
+            flash('Неверный старый пароль', 'error')
+            return redirect(url_for('web_settings'))
+
+        # Обновляем пароль
+        if update_user_password(current_user.id, new_password):
+            # Логируем смену пароля
+            log_action(current_user.id, current_user.username, 'change_own_password',
+                      'Пользователь сменил свой пароль')
+            flash('Пароль успешно изменен', 'success')
+        else:
+            flash('Ошибка изменения пароля', 'error')
+
+        return redirect(url_for('web_settings'))
+
+    except Exception as e:
+        logger.error(f"Error changing own password: {e}")
+        flash('Ошибка изменения пароля', 'error')
+        return redirect(url_for('web_settings'))
 
 
 if __name__ == '__main__':
