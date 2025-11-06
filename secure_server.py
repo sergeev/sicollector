@@ -1421,6 +1421,7 @@ if __name__ == '__main__':
     print("=" * 60)
     print(f"Server URL: {Config.SERVER_URL}")
     print(f"Web Login: {Config.SERVER_URL}/login")
+    print(f"Global Server URL: {Config.SERVER_PUBLIC_URL}")
     print("Default admin credentials: admin / admin123")
     print("=" * 60)
 
@@ -1428,7 +1429,7 @@ if __name__ == '__main__':
         app.run(
             host=Config.SERVER_HOST,
             port=int(Config.SERVER_PORT),
-            debug=True
+            debug=False
         )
     except Exception as e:
         logger.error(f"Server failed to start: {e}")

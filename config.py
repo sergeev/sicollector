@@ -14,10 +14,15 @@ class Config:
     # Ключ шифрования
     ENCRYPTION_KEY = os.environ.get('ENCRYPTION_KEY', 'your-32-byte-encryption-key-here-1234567890!')
 
-    # Настройки сервера
-    SERVER_HOST = os.environ.get('SERVER_HOST', 'localhost')
+    # ⚠️ ВАЖНО: Для работы в глобальной сети используйте 0.0.0.0
+    SERVER_HOST = os.environ.get('SERVER_HOST', '0.0.0.0') # Слушаем все интерфейсы
     SERVER_PORT = os.environ.get('SERVER_PORT', '5000')
     SERVER_URL = f"http://{SERVER_HOST}:{SERVER_PORT}"
+
+    # ⚠️ ВАЖНО: Укажите здесь ваш ВНЕШНИЙ IP-адрес
+    SERVER_PUBLIC_HOST = os.environ.get('SERVER_PUBLIC_HOST', 'http://0.0.0.0') # Слушаем все интерфейсы
+    SERVER_PUBLIC_PORT = os.environ.get('SERVER_PUBLIC_PORT', '5000')
+    SERVER_PUBLIC_URL = f"http://{SERVER_PUBLIC_HOST}:{SERVER_PUBLIC_PORT}"
 
     # Настройки базы данных
     DATA_DIR = "collected_data"
